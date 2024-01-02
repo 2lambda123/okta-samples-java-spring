@@ -1,5 +1,11 @@
 package com.okta.spring.example;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Configuration;
@@ -18,71 +24,66 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-
 @EnableResourceServer
 @SpringBootApplication
 public class ResourceServerExampleApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(ResourceServerExampleApplication.class, args);
+  public static void main(String[] args) {
+    SpringApplication.run(ResourceServerExampleApplication.class, args);
+  }
+
+  @EnableGlobalMethodSecurity(prePostEnabled = true)
+  protected static class GlobalSecurityConfiguration
+      extends GlobalMethodSecurityConfiguration {
+    @Override
+    protected MethodSecurityExpressionHandler createExpressionHandler() {
+      return new OAuth2MethodSecurityExpressionHandler();
+    }
+  }
+
+  @Configuration
+  @Order(0)
+  static class ResourceSecurityConfigurer
+      extends ResourceServerConfigurerAdapter {
+
+    @Override
+    public void configure(HttpSecurity http) throws Exception {
+      http.authorizeRequests()
+          .antMatchers(HttpMethod.OPTIONS, "/**")
+          .permitAll()
+          .anyRequest()
+          .authenticated();
+    }
+  }
+
+  @RestController
+  @CrossOrigin(origins = "http://localhost:8080")
+  public class MessageOfTheDayController {
+
+    @GetMapping("/api/userProfile")
+    @PreAuthorize("#oauth2.hasScope('profile')")
+    public Map<String, Object>
+    getUserDetails(OAuth2Authentication authentication) {
+      return (Map<String, Object>)authentication.getUserAuthentication()
+          .getDetails();
     }
 
-    @EnableGlobalMethodSecurity(prePostEnabled = true)
-    protected static class GlobalSecurityConfiguration extends GlobalMethodSecurityConfiguration {
-        @Override
-        protected MethodSecurityExpressionHandler createExpressionHandler() {
-            return new OAuth2MethodSecurityExpressionHandler();
-        }
+    @GetMapping("/api/messages")
+    @PreAuthorize("#oauth2.hasScope('email')")
+    public Map<String, Object> messages() {
+
+      Map<String, Object> result = new HashMap<>();
+      result.put("messages", Arrays.asList(new Message("I am a robot."),
+                                           new Message("Hello, world!")));
+
+      return result;
     }
+  }
 
-    @Configuration
-    @Order(0)
-    static class ResourceSecurityConfigurer extends ResourceServerConfigurerAdapter {
+  class Message {
+    public Date date = new Date();
+    public String text;
 
-        @Override
-        public void configure(HttpSecurity http) throws Exception {
-            http.authorizeRequests()
-                    .antMatchers(HttpMethod.OPTIONS,"/**").permitAll()
-                    .anyRequest().authenticated();
-        }
-    }
-
-    @RestController
-    @CrossOrigin(origins = "http://localhost:8080")
-    public class MessageOfTheDayController {
-
-        @GetMapping("/api/userProfile")
-        @PreAuthorize("#oauth2.hasScope('profile')")
-        public Map<String, Object> getUserDetails(OAuth2Authentication authentication) {
-            return (Map<String, Object>) authentication.getUserAuthentication().getDetails();
-        }
-
-        @GetMapping("/api/messages")
-        @PreAuthorize("#oauth2.hasScope('email')")
-        public Map<String, Object> messages() {
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("messages", Arrays.asList(
-                    new Message("I am a robot."),
-                    new Message("Hello, world!")
-            ));
-
-            return result;
-        }
-    }
-
-    class Message {
-        public Date date = new Date();
-        public String text;
-
-        Message(String text) {
-            this.text = text;
-        }
-    }
+    Message(String text) { this.text = text; }
+  }
 }
